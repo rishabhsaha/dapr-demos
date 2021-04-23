@@ -1,4 +1,26 @@
-apiVersion: extensions/v1beta1
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: ingress-rules
+#   annotations:
+#     kubernetes.io/ingress.class: nginx
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+# spec:
+#   tls:
+#     - hosts:
+# ##      - '*.DOMAINNAME'  
+#       - DOMAINNAME
+#       secretName: tls-secret
+#   rules:
+#     - host: DOMAINNAME
+#       http:
+#         paths:
+#           - path: /
+#             backend:
+#               serviceName: nginx-ingress-dapr
+#               servicePort: 80
+---
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-rules
@@ -8,15 +30,18 @@ metadata:
 spec:
   tls:
     - hosts:
-      - '*.DOMAINNAME'  
+##      - '*.dapr.demo.com'  
       - DOMAINNAME
       secretName: tls-secret
   rules:
-    - host: api.DOMAINNAME
+    - host: DOMAINNAME
       http:
         paths:
           - path: /
+            pathType: Prefix
             backend:
-              serviceName: nginx-ingress-dapr
-              servicePort: 80
+              service:
+                name: nginx-ingress-dapr
+                port: 
+                  number: 80
       

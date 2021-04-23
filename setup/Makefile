@@ -1,6 +1,6 @@
-DOMAIN           ?=example.com
-CLUSTER_NAME     ?=demo
-DAPR_RELEASE     ?=1.0.0-rc.1
+DOMAIN           ?=bekloud-native.com
+CLUSTER_NAME     ?=aks-gitops-wth
+DAPR_RELEASE     ?=1.1.0
 DAPR_HA          ?=true
 DAPR_LOG_AS_JSON ?=true
 
@@ -21,11 +21,23 @@ node-list: ## Print node resources and their usage
 	kubectl top nodes
 
 .PHONY: certs
-certs: ## Create wildcard TLS certificates using letsencrypt
+certs: ## Create wildcard TLS certificates using letsencrypt 
 	mkdir -p certs/$(DOMAIN)
 	sudo certbot certonly --manual --preferred-challenges dns -d "*.$(DOMAIN)"
 	sudo cp "/etc/letsencrypt/live/$(DOMAIN)/fullchain.pem" certs/$(DOMAIN)/cert-ca.pem	
 	sudo cp "/etc/letsencrypt/live/$(DOMAIN)/privkey.pem" certs/$(DOMAIN)/cert-pk.pem
+	sudo chmod 644 certs/$(DOMAIN)/*.pem
+## Please deploy a DNS TXT record under the name
+## _acme-challenge.dapr.example.com with the following value:
+##ZRGYFM3C3d_dzPIStkeyhWBpYr-_F44WiYNC7C6PNl8
+
+.PHONY: self-signed-certs
+self-signed-certs: ## Create wildcard TLS certificates using letsencrypt 
+	mkdir -p certs/$(DOMAIN)
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    	-out certs/$(DOMAIN)/cert-ca.pem \
+    	-keyout certs/$(DOMAIN)/cert-pk.pem \
+    	-subj "/CN=$(DOMAIN)/O=aks-ingress-tls"
 	sudo chmod 644 certs/$(DOMAIN)/*.pem
 
 .PHONY: dapr
@@ -147,6 +159,7 @@ ingress: ## Install and configures Ngnx ingress, configure SSL termination, Dapr
 		--key certs/$(DOMAIN)/cert-pk.pem \
 		--cert certs/$(DOMAIN)/cert-ca.pem \
 		-n nginx
+	kubectl delete -A ValidatingWebhookConfiguration ingress-nginx-admission
 	sed "s/DOMAINNAME/${DOMAIN}/g" config/ingress-template.yaml > config/ingress.yaml
 	# Apply configured ingress 
 	kubectl apply -f config/ingress.yaml -n nginx
@@ -171,6 +184,7 @@ dns: ## Check DNS resolution for cluster IP
 .PHONY: test
 test: ## Test deployment and execute Dapr API health checks
 	$(eval API_TOKEN=$(shell kubectl get secret dapr-api-token -n nginx -o jsonpath="{.data.token}" | base64 --decode))
+	
 	curl -v \
 		 -H "Content-type: application/json" \
 		 -H "dapr-api-token: $(API_TOKEN)" \
@@ -187,6 +201,29 @@ test: ## Test deployment and execute Dapr API health checks
 	@echo 
 	@echo "  HTTP/2 200"
 	@echo
+
+.PHONY: self-signed-cert-test
+self-signed-cert-test: ## Test deployment and execute Dapr API health checks
+	$(eval API_TOKEN=$(shell kubectl get secret dapr-api-token -n nginx -o jsonpath="{.data.token}" | base64 --decode))
+	$(eval EXTERNAL_IP=$(shell kubectl get svc nginx-ingress-nginx-controller -n nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}'))
+	curl -v -k \
+	--resolve $(DOMAIN):443:$(EXTERNAL_IP) https://$(DOMAIN)/v1.0/healthz \
+		 -H "Content-type: application/json" \
+		 -H "dapr-api-token: $(API_TOKEN)"
+		 
+		 
+	# @echo 
+	# @echo === DNS CHECK ===
+	# @echo Ensure server certificate has:
+	# @echo 
+	# @echo "  subject: CN=${DOMAIN}"
+	# @echo "  subjectAltName: host 'api.${DOMAIN}' matched cert's '*.${DOMAIN}'"
+	# @echo "  SSL certificate verify ok"
+	# @echo 
+	# @echo And that the response status from Dapr health checks was '200'
+	# @echo 
+	# @echo "  HTTP/2 200"
+	# @echo
 
 .PHONY: token
 token: ## Print Dapr API token 

@@ -4,7 +4,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-declare -r DAPR_RELEASE=${DAPR_RELEASE:-"1.0.0-rc.1"}
+declare -r DAPR_RELEASE=${DAPR_RELEASE:-"1.1.0"}
 declare -r DAPR_HA=${DAPR_HA:-"false"}
 declare -r DAPR_LOG_AS_JSON=${DAPR_LOG_AS_JSON:-"false"}
 declare -r DAPR_CONFIG=${DAPR_CONFIG:-"https://raw.githubusercontent.com/mchmarny/dapr-demos/master/setup/config"}
